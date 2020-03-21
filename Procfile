@@ -1,1 +1,1 @@
-web: streamlit run covidanalysis.py
+web: sh setup.sh && streamlit run covidanalysis.py
