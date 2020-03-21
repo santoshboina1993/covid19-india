@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import plotly.figure_factory as ff
 
 from PIL import Image
-logo_main = Image.open('./title.png')
+#logo_main = Image.open('./title.png')
 
 def main():
     st.markdown("""
@@ -62,8 +62,8 @@ def main():
     sumvals = pd.DataFrame(dftable[-1:])
 
 
-    st.image(logo_main,use_column_width=True)
- 
+    #st.image(logo_main,use_column_width=True)
+    st.title("Covid-19 Analysis")
     confirmed_cases_indian = sumvals.iloc[0]["Name of State / UT"]
     confirmed_cases_foreign = sumvals.iloc[0]["Total Confirmed cases (Indian National)"]
     total_death = sumvals.iloc[0]["Cured/Discharged/Migrated"]
