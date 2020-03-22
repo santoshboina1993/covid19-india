@@ -2,19 +2,15 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
-import io
-from io import StringIO
 import numpy as np
 import requests
 import lxml.html as lh
 from bs4 import BeautifulSoup
-import os        
-import base64
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
 
 from PIL import Image
-#logo_main = Image.open('./title.png')
+logo_main = Image.open('./title.png')
 
 def main():
     st.markdown("""
@@ -37,7 +33,7 @@ def main():
 
     html_content = requests.get(url).text
     soup = BeautifulSoup(html_content, "lxml")
-    htmltable = soup.find('table')
+    htmltable = soup.find_all('table')
  
     def tableDataText(table):       
         rows = []
@@ -51,10 +47,18 @@ def main():
             rows.append([td.get_text(strip=True) for td in tr.find_all('td')]) # data row
         return rows
 
-    list_table = tableDataText(htmltable)
+    list_table = tableDataText(htmltable[1])
     dftable = pd.DataFrame(list_table[1:],columns=list_table[0])
     dftable1 = dftable[:-1]
-    
+    #------------------------------------------------------------------------------------------------------
+    trs1 = htmltable[0].find_all('tr')
+    rows1 = []
+    for tr in trs1: # for every table row
+        rows1.append([td.get_text(strip=True) for td in tr.find_all('td')])
+ 
+    dftable_event = pd.DataFrame(rows1[2:],columns = ['Date','Title'])  
+    dftable_event.set_index('Date', inplace=True)   
+    #--------------------------------------------------------------------------------------------------------
     dftable1[['Total Confirmed cases (Indian National)','Total Confirmed cases ( Foreign National )','Death','Cured/Discharged/Migrated']] =     dftable1[['Total Confirmed cases (Indian National)','Total Confirmed cases ( Foreign National )','Death','Cured/Discharged/Migrated']].apply(pd.to_numeric) 
 
     dftable1['total'] = dftable1['Total Confirmed cases (Indian National)'] + dftable1['Total Confirmed cases ( Foreign National )']+ dftable1['Death'] + dftable1['Cured/Discharged/Migrated']
@@ -62,8 +66,8 @@ def main():
     sumvals = pd.DataFrame(dftable[-1:])
 
 
-    #st.image(logo_main,use_column_width=True)
-    st.title("Covid-19 Analysis")
+    st.image(logo_main,use_column_width=True)
+ 
     confirmed_cases_indian = sumvals.iloc[0]["Name of State / UT"]
     confirmed_cases_foreign = sumvals.iloc[0]["Total Confirmed cases (Indian National)"]
     total_death = sumvals.iloc[0]["Cured/Discharged/Migrated"]
@@ -85,6 +89,9 @@ def main():
       
             
     st.plotly_chart(table)
+    st.markdown('---')
+    st.markdown('<h2><strong>Latest Updates</strong></h2>',unsafe_allow_html = True)
+    st.write(dftable_event)
     st.markdown('---')
     
     def cases_statewise(dftable1):
