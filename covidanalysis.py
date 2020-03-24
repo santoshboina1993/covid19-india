@@ -47,11 +47,11 @@ def main():
             rows.append([td.get_text(strip=True) for td in tr.find_all('td')]) # data row
         return rows
 
-    list_table = tableDataText(htmltable[1])
+    list_table = tableDataText(htmltable[7])
     dftable = pd.DataFrame(list_table[1:],columns=list_table[0])
     dftable1 = dftable[:-1]
     #------------------------------------------------------------------------------------------------------
-    trs1 = htmltable[0].find_all('tr')
+    trs1 = htmltable[6].find_all('tr')
     rows1 = []
     for tr in trs1: # for every table row
         rows1.append([td.get_text(strip=True) for td in tr.find_all('td')])
