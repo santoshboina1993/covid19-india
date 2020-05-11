@@ -8,139 +8,126 @@ import lxml.html as lh
 from bs4 import BeautifulSoup
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
-
-from PIL import Image
-#logo_main = Image.open('./title.png')
-
-def main():
-    st.markdown("""
-        <style>
-        body {
-            color: #262730;
-            background-color: #ffffff	;
-            etc. 
-                }
-
-            </style>
-            """, unsafe_allow_html=True)
-
-    st.markdown('''<style> 
-                h2{color: #000080;}
-                </style>''', unsafe_allow_html=True)
+import json
+from pandas.io.json import json_normalize
+from plotly.subplots import make_subplots
+from datetime import date
     
+url_datewise='https://api.rootnet.in/covid19-in/stats/history'
+#url_total="https://api.rootnet.in/covid19-in/stats/latest"
 
-    url='https://www.mohfw.gov.in/'
+json_content = requests.get(url_datewise).text
+data = json.loads(json_content)
+grouped_data  = (json_normalize(data['data'],record_path=['regional'],meta = ['day']))
+grouped_data['day'] = grouped_data['day'].astype('datetime64[ns]') 
 
-    html_content = requests.get(url).text
-    soup = BeautifulSoup(html_content, "lxml")
-    htmltable = soup.find_all('table')
- 
-    def tableDataText(table):       
-        rows = []
-        trs = table.find_all('tr')
-        headerow = [td.get_text(strip=True) for td in trs[0].find_all('th')] # header row
-        if headerow: # if there is a header row include first
-            rows.append(headerow)
-            trs = trs[1:]
+def line_plot(state_name,filter_df):
+    trace_1 = go.Scatter(x=filter_df['day'], y=filter_df['totalConfirmed'],
+                    mode='lines',
+                    name='Confirmed Cases')
+    trace_2 = go.Scatter(x=filter_df['day'], y=filter_df['deaths'],
+                    mode='lines',
+                    name='Deaths')
+    trace_3 = go.Scatter(x=filter_df['day'], y=filter_df['discharged'],
+                    mode='lines',
+                    name='Cured')
+    data = [trace_1,trace_2,trace_3]
     
-        for tr in trs: # for every table row
-            rows.append([td.get_text(strip=True) for td in tr.find_all('td')]) # data row
-        return rows
-
-    list_table = tableDataText(htmltable[7])
-    dftable = pd.DataFrame(list_table[1:],columns=list_table[0])
-    dftable1 = dftable[:-1]
-    #------------------------------------------------------------------------------------------------------
-    trs1 = htmltable[6].find_all('tr')
-    rows1 = []
-    for tr in trs1: # for every table row
-        rows1.append([td.get_text(strip=True) for td in tr.find_all('td')])
- 
-    dftable_event = pd.DataFrame(rows1[2:],columns = ['Date','Title'])  
-    dftable_event.set_index('Date', inplace=True)   
-    #--------------------------------------------------------------------------------------------------------
-    dftable1[['Total Confirmed cases (Indian National)','Total Confirmed cases ( Foreign National )','Death','Cured/Discharged/Migrated']] =     dftable1[['Total Confirmed cases (Indian National)','Total Confirmed cases ( Foreign National )','Death','Cured/Discharged/Migrated']].apply(pd.to_numeric) 
-
-    dftable1['total'] = dftable1['Total Confirmed cases (Indian National)'] + dftable1['Total Confirmed cases ( Foreign National )']+ dftable1['Death'] + dftable1['Cured/Discharged/Migrated']
-    dftable1 = dftable1.sort_values(by='total',ascending = False)
-    sumvals = pd.DataFrame(dftable[-1:])
-
-
-    #st.image(logo_main,use_column_width=True)
-    st.title("COVID-19 Analysis")
-    confirmed_cases_indian = sumvals.iloc[0]["Name of State / UT"]
-    confirmed_cases_foreign = sumvals.iloc[0]["Total Confirmed cases (Indian National)"]
-    total_death = sumvals.iloc[0]["Cured/Discharged/Migrated"]
-    total_cured = sumvals.iloc[0]["Total Confirmed cases ( Foreign National )"]
+    layout = go.Layout(
+    xaxis=dict(title='Date'),
+    yaxis=dict(title='Count'),
+    template= 'plotly_white',
+    width= 900
+    )
+    fig = go.Figure(data=data, layout=layout)
     
-    st.markdown('<h2><strong>Confirmed cases in India</strong></h2>',unsafe_allow_html = True)
-    from datetime import date
-    st.write("as on date:",date.today())
-     
-
-        
-    eval_matrix = [['Indian Nationals','Foreign Nationals', 'Deaths'],
-               [f'<b>{confirmed_cases_indian}</b>',f'<b>{confirmed_cases_foreign}</b>', f'<b>{total_death}</b>']]
-
-    table = ff.create_table(eval_matrix,height_constant = 50)
-        
-    for i in range(len(table.layout.annotations)):
-        table.layout.annotations[i].font.size = 20
-      
-            
-    st.plotly_chart(table)
-    st.markdown('---')
-    st.markdown('<h2><strong>Latest Updates</strong></h2>',unsafe_allow_html = True)
-    st.write(dftable_event)
-    st.markdown('---')
+    return (fig)
     
-    def cases_statewise(dftable1):
-        trace1 = go.Bar(x=dftable1['Name of State / UT'], y=dftable1["Total Confirmed cases (Indian National)"],name = "Indian Nationals",marker=dict(color='#000080'))
-        trace2 = go.Bar(x=dftable1['Name of State / UT'], y=dftable1["Total Confirmed cases ( Foreign National )"],name = "Foreign Nationals")
-        
-        data = [trace1,trace2]
-        layout = go.Layout(
+def present_stats(present_confirmed,present_death,present_discharged):
+    
+    table_data = [['      Confirmed', '         Deaths', '      Discharged'],
+                [ f'           <b>{present_confirmed}</b>', f'            <b>{present_death}</b>', f'          <b>{present_discharged}</b>']]
+
+    colorscale = [[0, '#ffffff'],[.5, '#000000'],[1, '#ffffff']]
+    font=['#000000']
+    
+    fig = ff.create_table(table_data, colorscale=colorscale,font_colors=font)
+
+    for i in range(len(fig.layout.annotations)):
+        fig.layout.annotations[i].font.size = 20
+
+    return (fig)
+
+def overall_count(total_confirmed,total_deaths,total_discharged):
+    fig = go.Figure()
+    fig.add_trace(go.Indicator(
+    mode = "number",
+    value = total_confirmed,
+    title = 'Confirmed',
+    domain = {'row': 0, 'column': 0}))
+
+    fig.add_trace(go.Indicator(
+    mode = "number",
+    value = total_deaths,
+    title='Deaths',
+    domain = {'row': 0, 'column': 1}))
+
+    fig.add_trace(go.Indicator(
+    mode = "number",
+    value = total_discharged,
+    title='Discharged',
+    domain = {'row': 0, 'column': 2}))
+
+    
+    fig.update_layout(
+    grid = {'rows': 2, 'columns': 3, 'pattern': "independent"},
+    height = 600,
+    font = {'color': "darkblue"}
+    )
+    return fig
+
+
+
+if __name__ =='__main__':
+    st.title("COVID-19 India Dashboard")
+    st.write('as on date ',date.today())
+    total_data = grouped_data.groupby(['loc']).last()
+
+    total_confirmed = sum(total_data['totalConfirmed'])
+    total_deaths = sum(total_data['deaths'])
+    total_discharged = sum(total_data['discharged'])
+
+    st.plotly_chart(present_stats(total_confirmed,total_deaths,total_discharged))
+
+    trace1 = go.Bar(x=total_data.index, y=total_data["discharged"],name = "Discharged",marker=dict(color='#8FBC8F'))
+    trace2 = go.Bar(x=total_data.index, y=total_data["deaths"],name = "Deaths",marker=dict(color='#8B0000'))
+    trace3 = go.Scatter(x=total_data.index,y=total_data['totalConfirmed'],name = "Total Confirmed",marker=dict(color='#d3d3d3 '),fill='tozeroy',mode='lines',opacity=0.7)
+    
+    data = [trace3,trace1,trace2]
+    layout = go.Layout(
         barmode= 'stack',    
         xaxis=dict(title='States /UT'),
         yaxis=dict(title='Count'),
         bargap=0.1,
         bargroupgap=0.1,
         template= 'plotly_white',
-        width= 950
-        
-        )
-        fig = go.Figure(data=data, layout=layout)
-        return(fig)
-
-    st.markdown('<h2><strong>Indian/Foreigners Count by States</strong></h2>',unsafe_allow_html = True)
-    sel = st.slider("Most affected states:",min_value=3,max_value= 22,value = 5)
-    st.plotly_chart(cases_statewise(dftable1[:sel]))
-                    
-    st.markdown('---')
-    st.markdown('<h2><strong>State level Death/Cure Analysis</strong></h2>',unsafe_allow_html = True)
-    df_transposed = dftable1.T
-    #df_transposed.columns = df_transposed.index[1]
-    df_transposed = df_transposed.drop(df_transposed.index[0])
-    headers = df_transposed.iloc[0]
-    new_df  = pd.DataFrame(df_transposed.values[1:], columns=headers)
-    st.subheader("Select s State:")
-    state_slcted = st.selectbox(" ",list(new_df.columns),index = 7)
-    labels = ['Cures','Death']
-    values = list(new_df[state_slcted])
-    values = values[2:4]
-    if sum(values)>0:
-        fig = go.Figure(data=[go.Pie(labels=labels,values=values)])
-        st.plotly_chart(fig)
-    else:
-        st.subheader("There are no deaths/cures for selected state")
-    st.markdown('---')
-
-    st.subheader('Resources:')   
+        width= 950,
+        height=600
     
-    st.markdown('''
-    - Data: [mohfw.gov.in] (https://www.mohfw.gov.in/)
-    - Developed By: [Santosh Boina] (https://www.linkedin.com/in/santoshboina/)
-    ''')    
-       
-if __name__ == "__main__":
-    main()
+        )
+    fig = go.Figure(data=data, layout=layout)
+    st.plotly_chart(fig)
+    
+    selected_state = st.selectbox("State",list(set(grouped_data['loc'])))
+    filter_df = grouped_data[grouped_data['loc']==selected_state]
+    present_df = filter_df.tail(1)
+    present_confirmed=present_df.iloc[0]['totalConfirmed']
+    present_death = present_df.iloc[0]['deaths']
+    present_date = present_df.iloc[0]['day']
+    present_discharged = present_df.iloc[0]['discharged']
+    #st.markdown(f'<h3><strong>COVID cases in India as on {date.today()}</strong></h3>',unsafe_allow_html = True)
+    st.write(f"In {selected_state} ,as on date:",date.today())
+    st.plotly_chart(present_stats(present_confirmed,present_death,present_discharged))
+    
+    st.plotly_chart(line_plot(selected_state,filter_df))
+    
